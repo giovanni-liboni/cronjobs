@@ -17,7 +17,21 @@ require_command() {
   fi
 }
 
-require_command "cc-switch"
+CC_SWITCH_CMD="${CC_SWITCH_CMD:-}"
+if [[ -z "$CC_SWITCH_CMD" ]]; then
+  for candidate in ccswitch ccswitch.sh; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      CC_SWITCH_CMD="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -z "$CC_SWITCH_CMD" ]]; then
+  error "Set CC_SWITCH_CMD to the cc-account-switcher executable or add it to PATH."
+fi
+
+require_command "$CC_SWITCH_CMD"
 CLAUDE_CMD="${CLAUDE_CMD:-claude}"
 require_command "$CLAUDE_CMD"
 
@@ -25,7 +39,7 @@ MESSAGE="${CLAUDE_MESSAGE:-Hello from the Claude daily cron job.}"
 ACCOUNT_SPEC="${CLAUDE_ACCOUNTS:-}"
 
 if [[ -z "$ACCOUNT_SPEC" ]]; then
-  error "Set CLAUDE_ACCOUNTS to a comma-separated list of cc-switch configuration names."
+  error "Set CLAUDE_ACCOUNTS to a comma-separated list of cc-account-switcher identifiers."
 fi
 
 IFS=',' read -r -a ACCOUNT_NAMES <<< "$ACCOUNT_SPEC"
@@ -47,11 +61,11 @@ for raw_account in "${ACCOUNT_NAMES[@]}"; do
   fi
 
   safe_account="$(printf '%s' "$account" | tr -c '[:alnum:]-_' '_')"
-  cc_switch_log="/tmp/cc-switch-${safe_account}-$$.log"
+  cc_switch_log="/tmp/cc-account-switcher-${safe_account}-$$.log"
   claude_log="/tmp/claude-${safe_account}-$$.log"
 
   log "Switching to Claude account '$account'."
-  if ! cc-switch use "$account" >"$cc_switch_log" 2>&1; then
+  if ! "$CC_SWITCH_CMD" --switch-to "$account" >"$cc_switch_log" 2>&1; then
     log "Failed to switch to account '$account'. See $cc_switch_log for details."
     continue
   fi
